@@ -1,12 +1,11 @@
-use team::Team;
 
 use inquire::{InquireError, Select};
-use serde::{Deserialize, Serialize};
-use std::io::{self, Write};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use dotenv::dotenv;
 use std::env;
+
+use common::team::Team;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -51,15 +50,5 @@ fn inquire_team() -> Option<Team> {
             println!("There was an error: {}, please try again", e);
             None
         }
-    }
-}
-
-pub mod team {
-    use super::*;
-
-    #[derive(Debug, Serialize, Deserialize)]
-    pub enum Team {
-        WHITE,
-        BLACK,
     }
 }
