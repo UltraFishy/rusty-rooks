@@ -16,12 +16,9 @@ Dan Bretherton
 The communal chess voting application
 */
 
-use std::sync::Arc;
-use termion::event::Key;
-use termion::input::TermRead;
-use tokio::io::AsyncWriteExt;
-use tokio::net::TcpStream;
-use tokio::sync::Mutex;
+use std::io::{Read, Write};
+use std::net::TcpStream;
+use std::sync::{Arc, Mutex};
 
 pub mod client {
     use super::*;
@@ -34,11 +31,15 @@ pub mod client {
     }
 
     impl Client {
-        pub fn new(team: Option<Team>, ip: String, stream: Arc<Mutex<TcpStream>>) -> Self {
-            Client { team, ip, stream }
+        pub fn new(ip: String, stream: Arc<Mutex<TcpStream>>) -> Self {
+            Client {
+                team: None,
+                ip,
+                stream,
+            }
         }
 
-        pub fn select_team(&mut self) -> Team {
+        pub fn select_team() -> Team {
             use std::io::{self, Write};
             use termion::event::Key;
             use termion::input::TermRead;
@@ -86,14 +87,14 @@ pub mod client {
             selected_team
         }
 
-        pub async fn send_team(&self) {
-            let message = format!("Selected team: {:?}", self.team.as_ref().unwrap());
-            let mut stream = self.stream.lock().await;
-            stream.write_all(message.as_bytes()).await.unwrap();
+        pub fn send_team(&self, team: Team) {
+            let message = format!("Selected team: {:?}", team);
+            let mut stream = self.stream.lock().unwrap();
+            stream.write_all(message.as_bytes()).unwrap();
         }
     }
 
-    #[derive(Debug, PartialEq, PartialOrd)]
+    #[derive(Debug, PartialEq, PartialOrd, Clone, Copy)]
     pub enum Team {
         WHITE,
         BLACK,
@@ -120,31 +121,43 @@ pub mod server {
             }
         }
 
-        async fn broadcast_to_team(&self, team: &Team, message: &str) {
-            let clients = self.clients.lock().await;
-            for client in clients.iter() {
-                if let Some(client_team) = &client.team {
-                    if client_team == team {
-                        let stream = Arc::clone(&client.stream);
-                        let message = message.to_string();
-                        tokio::spawn(async move {
-                            let mut stream = stream.lock().await;
-                            stream.write_all(message.as_bytes()).await.unwrap();
-                        });
-                    }
-                }
-            }
-        }
+        pub fn handle_client(
+            stream: Arc<Mutex<TcpStream>>,
+            clients: Arc<Mutex<Vec<Client>>>,
+            ip: String,
+        ) {
+            let mut buf = [0; 1024];
 
-        async fn broadcast_to_all(&self, message: &str) {
-            let clients = self.clients.lock().await;
-            for client in clients.iter() {
-                let stream = Arc::clone(&client.stream);
-                let message = message.to_string();
-                tokio::spawn(async move {
-                    let mut stream = stream.lock().await;
-                    stream.write_all(message.as_bytes()).await.unwrap();
-                });
+            // Simulate client joining
+            let mut client = Client::new(ip.clone(), Arc::clone(&stream));
+
+            // Prompt the client to choose a team synchronously
+            let team = Client::select_team();
+            client.team = Some(team);
+
+            // Send the selected team to the server
+            client.send_team(team);
+
+            clients.lock().unwrap().push(client);
+
+            loop {
+                let n = {
+                    let mut stream = stream.lock().unwrap();
+                    stream.read(&mut buf).unwrap()
+                };
+
+                if n == 0 {
+                    println!("Client {} disconnected", ip);
+                    return;
+                }
+
+                println!("Received from {}: {:?}", ip, &buf[..n]);
+
+                // Echo message back to client
+                {
+                    let mut stream = stream.lock().unwrap();
+                    stream.write_all(&buf[..n]).unwrap();
+                }
             }
         }
     }
