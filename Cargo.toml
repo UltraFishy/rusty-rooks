@@ -6,7 +6,13 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-dotenv = "0.15"
-tokio = { version = "1", features = ["full"]}
-tokio-stream = "0.1.15"
-termion = "4.0.2"
+# tokio.
+tokio = { version = "1.35.1", features = ["full"] }
+
+# stdout logging.
+femme = { version = "2.2.1" }
+log = { version = "0.4.20" }
+
+# r3bl_rs_utils_core - friendly name generator.
+r3bl_rs_utils_core = { version = "0.9.12" }
+r3bl_tui = { version = "0.5.1" }

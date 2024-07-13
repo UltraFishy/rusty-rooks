@@ -16,149 +16,167 @@ Dan Bretherton
 The communal chess voting application
 */
 
-use std::io::{Read, Write};
-use std::net::TcpStream;
-use std::sync::{Arc, Mutex};
+use std::{fmt::format, net::SocketAddr};
 
-pub mod client {
-    use super::*;
+use r3bl_rs_utils_core::friendly_random_id;
+use r3bl_tui::ColorWheel;
+use tokio::{
+    io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter, ReadHalf},
+    net::{tcp::WriteHalf, TcpStream},
+    sync::broadcast::{error::RecvError, Sender},
+};
 
-    #[derive(Debug)]
-    pub struct Client {
-        pub team: Option<Team>,
-        pub ip: String,
-        pub stream: Arc<Mutex<TcpStream>>, // This will be used for communication
-    }
+pub type IOResult<T> = std::io::Result<T>;
 
-    impl Client {
-        pub fn new(ip: String, stream: Arc<Mutex<TcpStream>>) -> Self {
-            Client {
-                team: None,
-                ip,
-                stream,
-            }
-        }
-
-        pub fn select_team() -> Team {
-            use std::io::{self, Write};
-            use termion::event::Key;
-            use termion::input::TermRead;
-
-            let stdin = io::stdin();
-            let mut stdout = io::stdout();
-
-            write!(stdout, "Choose your team: [White] [Black]").unwrap();
-            stdout.flush().unwrap();
-
-            let mut selected_team = Team::WHITE;
-
-            for key in stdin.keys() {
-                match key.unwrap() {
-                    Key::Left | Key::Right => {
-                        selected_team = if selected_team == Team::WHITE {
-                            Team::BLACK
-                        } else {
-                            Team::WHITE
-                        };
-                        write!(
-                            stdout,
-                            "\rChoose your team: [{}] [{}]",
-                            if selected_team == Team::WHITE {
-                                "White"
-                            } else {
-                                "White"
-                            },
-                            if selected_team == Team::BLACK {
-                                "Black"
-                            } else {
-                                "Black"
-                            }
-                        )
-                        .unwrap();
-                        stdout.flush().unwrap();
-                    }
-                    Key::Char('\n') => {
-                        break;
-                    }
-                    _ => {}
-                }
-            }
-
-            selected_team
-        }
-
-        pub fn send_team(&self, team: Team) {
-            let message = format!("Selected team: {:?}", team);
-            let mut stream = self.stream.lock().unwrap();
-            stream.write_all(message.as_bytes()).unwrap();
-        }
-    }
-
-    #[derive(Debug, PartialEq, PartialOrd, Clone, Copy)]
-    pub enum Team {
-        WHITE,
-        BLACK,
-    }
+#[derive(Debug, Clone)]
+pub struct MsgType {
+    pub socket_addr: SocketAddr,
+    pub payload: String,
+    pub from_id: String,
 }
 
-pub mod server {
-    use super::*;
-    use client::{Client, Team};
+pub async fn handle_client_task(
+    mut tcp_stream: TcpStream,
+    tx: Sender<MsgType>,
+    socket_addr: SocketAddr,
+) -> IOResult<()> {
+    log::info!("Handle socket connection from client");
 
-    #[derive(Debug)]
-    pub struct Server {
-        pub port: u16,
-        pub ip: String,
-        pub clients: Arc<Mutex<Vec<Client>>>,
-    }
+    let id = friendly_random_id::generate_friendly_random_id();
+    let mut rx = tx.subscribe();
 
-    impl Server {
-        pub fn new(port: u16, ip: String) -> Self {
-            Server {
-                port,
-                ip,
-                clients: Arc::new(Mutex::new(Vec::new())),
+    // Set up buf reader and writer.
+    let (reader, writer) = tcp_stream.split();
+    let mut reader = BufReader::new(reader);
+    let mut writer = BufWriter::new(writer);
+
+    // Send welcome message to client w/ ids.
+    let welcome_msg_for_client =
+        ColorWheel::lolcat_into_string(&format!("addr: {}, id: {}\n", socket_addr, id));
+    
+    let _ = send_to_client(&mut writer, welcome_msg_for_client).await;
+
+    let mut incoming = String::new();
+
+    loop {
+        let tx = tx.clone();
+        tokio::select! {
+            // Read from broadcast channel.
+            result = rx.recv() => {
+                read_from_broadcast_channel(result, socket_addr, &mut writer, &id).await?;
             }
-        }
 
-        pub fn handle_client(
-            stream: Arc<Mutex<TcpStream>>,
-            clients: Arc<Mutex<Vec<Client>>>,
-            ip: String,
-        ) {
-            let mut buf = [0; 1024];
-
-            // Simulate client joining
-            let mut client = Client::new(ip.clone(), Arc::clone(&stream));
-
-            // Prompt the client to choose a team synchronously
-            let team = Client::select_team();
-            client.team = Some(team);
-
-            // Send the selected team to the server
-            client.send_team(team);
-
-            clients.lock().unwrap().push(client);
-
-            loop {
-                let n = {
-                    let mut stream = stream.lock().unwrap();
-                    stream.read(&mut buf).unwrap()
-                };
-
-                if n == 0 {
-                    println!("Client {} disconnected", ip);
-                    return;
+            // Read from socket.
+            network_read_result = reader.read_line(&mut incoming) => {
+                let num_bytes_read: usize = network_read_result?;
+                // EOF check.
+                if num_bytes_read == 0 {
+                    break;
                 }
-
-                println!("Received from {}: {:?}", ip, &buf[..n]);
-
-                // Echo message back to client
-                {
-                    let mut stream = stream.lock().unwrap();
-                    stream.write_all(&buf[..n]).unwrap();
-                }
+                handle_socket_read(num_bytes_read, &id, &incoming, &mut writer, tx, socket_addr).await?;
+                incoming.clear();
             }
         }
     }
+
+    Ok(())
+}
+
+pub async fn read_from_broadcast_channel(
+    result: Result<MsgType, RecvError>,
+    socket_addr: SocketAddr,
+    writer: &mut BufWriter<WriteHalf<'_>>,
+    id: &str,
+) -> IOResult<()> {
+    match result {
+        Ok(it) => {
+            let msg: MsgType = it;
+            log::info!("[{}]: channel: {:?}", id, msg);
+            if msg.socket_addr != socket_addr {
+                writer.write(msg.payload.as_bytes()).await?;
+                writer.flush().await?;
+            }
+        }
+        Err(error) => {
+            log::error!("{:?}", error);
+        }
+    }
+
+    Ok(())
+}
+
+pub async fn handle_socket_read(
+    num_bytes_read: usize,
+    id: &str,
+    incoming: &str,
+    writer: &mut BufWriter<WriteHalf<'_>>,
+    tx: Sender<MsgType>,
+    socket_addr: SocketAddr,
+) -> IOResult<()> {
+    log::info!(
+        "[{}]: incoming: {}, size: {}",
+        id,
+        incoming.trim(),
+        num_bytes_read
+    );
+
+    // Process incoming -> outgoing.
+    let outgoing = process(&incoming);
+
+    // outgoing -> Writer.
+    writer.write(outgoing.as_bytes()).await?;
+    writer.flush().await?;
+
+    // Broadcast outgoing to the channel.
+    let _ = tx.send(MsgType {
+        socket_addr,
+        payload: incoming.to_string(),
+        from_id: id.to_string(),
+    });
+
+    log::info!(
+        "[{}]: outgoing: {}, size: {}",
+        id,
+        outgoing.trim(),
+        num_bytes_read
+    );
+
+    Ok(())
+}
+
+pub fn process(incoming: &str) -> String {
+    // Remove new line from incoming.
+    let incoming_trimmed = format!("{}", incoming.trim());
+    // Colorize it.
+    let outgoing = ColorWheel::lolcat_into_string(&incoming_trimmed);
+    // Add new line back to outgoing.
+    format!("{}\n", outgoing)
+}
+
+pub async fn send_to_client(writer: &mut BufWriter<WriteHalf<'_>>, msg: String) -> IOResult<()> {
+    writer.write(msg.as_bytes()).await?;
+    writer.flush().await?;
+    Ok(())
+}
+
+#[derive(Debug)]
+pub enum Team {
+    WHITE,
+    BLACK
+}
+
+pub fn welcome_and_team_selection(writer: &mut BufWriter<WriteHalf<'_>>, reader: &mut BufReader<ReadHalf<String>>) {
+    let clear = "\x1B[2J";
+    let welcome = format!("Welcome to {}", ColorWheel::lolcat_into_string("Rusty Rooks!!!\n"));
+    let select = format!("Please select a team: \n{} White\n{} Black\n>", ColorWheel::lolcat_into_string("1."), ColorWheel::lolcat_into_string("2."));
+    let msg = format!("{}{} {}", clear, welcome, select);
+
+    // Send Welcome
+    let _ = send_to_client(writer, msg);
+
+    // Get Team Back
+    while true {
+        if 
+    }
+
 }
