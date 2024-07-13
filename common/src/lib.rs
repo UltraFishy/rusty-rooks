@@ -1,7 +1,6 @@
-use serde_derive::{Deserialize, Serialize};
 
 pub mod team {
-    use super::*;
+    use serde_derive::{Deserialize, Serialize}; 
 
     #[derive(Debug, Serialize, Deserialize)]
     pub enum Team {

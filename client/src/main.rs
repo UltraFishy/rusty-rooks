@@ -2,7 +2,7 @@
 use inquire::{InquireError, Select};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
-use dotenv::dotenv;
+use dotenv::from_filename;
 use std::env;
 
 use common::team::Team;
@@ -15,17 +15,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         team = inquire_team();
     }
 
-    dotenv().ok();
-    let server_port = env::var("SERVER_PORT").expect("SERVER_PORT not set");
-    let auth_key = env::var("AUTH_KEY").expect("AUTH_KEY not set");
+    let team: Team = team.unwrap();
 
-    let server_address = format!("server:{}", server_port);
+    from_filename("../.env").ok();
+    
+    let server_port = env::var("SERVER_PORT").expect("SERVER_PORT not set");
+    let server_host = env::var("SERVER_HOST").expect("SERVER_HOST not set");
+    // let auth_key = env::var("AUTH_KEY").expect("AUTH_KEY not set");
+
+    let server_address = format!("{}:{}", server_host, server_port); 
     let mut socket = TcpStream::connect(server_address).await?;
     println!("Connected to server!");
 
-    socket.write_all(auth_key.as_bytes()).await?;
+    // socket.write_all(auth_key.as_bytes()).await?;
 
-    let team_bytes = bincode::serialize(&team.unwrap()).unwrap(); // Serialize the team enum
+    let team_bytes = bincode::serialize(&team).unwrap(); // Serialize the team enum
     socket.write_all(&team_bytes).await?; // Send serialized data to server
 
     let mut buf = vec![0; 1024];

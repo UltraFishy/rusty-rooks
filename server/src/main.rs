@@ -1,13 +1,19 @@
 use tokio::net::TcpListener;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use std::env;
+use dotenv::from_filename;
 
 use common::team::Team;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    from_filename("../.env").ok();
+
     let server_port = env::var("SERVER_PORT").expect("SERVER_PORT not set");
-    let server_address = format!("server:{}", server_port);
+    let server_host = env::var("SERVER_HOST").expect("SERVER_HOST not set");
+    // let auth_key = env::var("AUTH_KEY").expect("AUTH_KEY not set");
+
+    let server_address = format!("{}:{}", server_host, server_port);
 
     let listener = TcpListener::bind(server_address).await?;
     println!("Server listening on port 8080...");
