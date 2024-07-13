@@ -1,7 +1,7 @@
 FROM rust:latest
 
 # Set the working directory
-WORKDIR /usr/src/app
+WORKDIR /home/ultrafish/projects/winter_hack_2024/rusty-rooks/client
 
 # Copy the source code
 COPY . .

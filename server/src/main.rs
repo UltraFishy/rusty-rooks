@@ -3,7 +3,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use std::env;
 use dotenv::from_filename;
 
-use common::team::Team;
+use server::team::Team;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

@@ -88,21 +88,11 @@ name = "client"
 version = "0.1.0"
 dependencies = [
  "bincode",
- "common",
  "dotenv",
  "inquire",
  "serde",
  "serde_derive",
  "tokio",
-]
-
-[[package]]
-name = "common"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_derive",
- "serde_repr",
 ]
 
 [[package]]
@@ -361,23 +351,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "serde_repr"
-version = "0.1.19"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6c64451ba24fc7a6a2d60fc75dd9c83c90903b19028d4eff35e88fc1e86564e9"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
 name = "server"
 version = "0.1.0"
 dependencies = [
  "bincode",
- "common",
  "dotenv",
+ "serde",
+ "serde_derive",
  "tokio",
 ]
 

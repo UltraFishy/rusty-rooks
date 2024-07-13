@@ -8,7 +8,6 @@ edition = "2021"
 [dependencies]
 tokio = { version = "1", features = ["full"] }
 dotenv = "0.15.0"
-common = { path = "../common" }
 inquire = "0.7.5"
 serde = "1.0.204"
 serde_derive = "1.0.204"

@@ -1,10 +1,11 @@
 FROM rust:latest
 
-# Set the working directory
-WORKDIR /usr/src/app
+# Set the working directory for common
+WORKDIR /home/ultrafish/projects/winter_hack_2024/rusty-rooks/server
 
-# Copy the source code
-COPY . .
+COPY . . 
+
+RUN cargo clean
 
 # Build the server application
 RUN cargo build --release

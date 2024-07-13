@@ -5,7 +5,7 @@ use tokio::net::TcpStream;
 use dotenv::from_filename;
 use std::env;
 
-use common::team::Team;
+use client::team::Team;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

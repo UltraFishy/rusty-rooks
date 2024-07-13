@@ -5,19 +5,22 @@ services:
     build:
       context: ./server
       dockerfile: Dockerfile
+    deploy:
+      replicas: 1
     ports:
       - "1234:1234"
     env_file:
-      - ../.env
+      - .env  # Adjust this path
 
   client:
     build:
       context: ./client
       dockerfile: Dockerfile
     deploy:
-      replicas: 5
+      replicas: 1
+    tty: true   # Ensures TTY support for terminal interaction
     env_file:
-      - ../.env
+      - .env  # Adjust this path
     depends_on:
       - server
 
@@ -27,4 +30,5 @@ services:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf
     ports:
       - "2345:80"
+
 
