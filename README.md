@@ -26,3 +26,8 @@ Clone the repository:
 git clone https://github.com/UltraFishy/rusty-rooks.git
 cd rusty-rooks
 ```
+
+### Connecting 
+```bash
+nc rusty-rooks.game 2345
+```
