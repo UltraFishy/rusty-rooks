@@ -1,4 +1,4 @@
-![Rusty-rooks](./assets/♖.png)
+![Rusty-rooks](./assets/piece.png)
 
 # RUSTY-ROOKS
 
