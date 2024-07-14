@@ -1,3 +1,5 @@
+![Rusty-rooks](./assets/♖.png)
+
 # RUSTY-ROOKS
 
 ## Overview
