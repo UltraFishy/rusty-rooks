@@ -3,7 +3,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use std::env;
 use dotenv::from_filename;
 
-use server::team::Team;
+use server::team::{Team, Teams};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -18,6 +18,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let listener = TcpListener::bind(server_address).await?;
     println!("Server listening on port 8080...");
 
+    let mut teams : Teams = Teams::new(1);
+
     loop {
         let (mut socket, _) = listener.accept().await?;
 
@@ -30,6 +32,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let team: Team = bincode::deserialize(&buf[..n]).expect("Failed to deserialize data"); // Deserialize team enum
             println!("Received team: {:?}", team);
 
+            let _ = &teams.add_team(team);
+
             // Process the team choice as needed
 
             socket.write_all(b"Hello from server!\n").await.expect("Failed to write response");
@@ -37,3 +41,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
     }
 }
+
+// fn broadcast_start() {
+
+// }
+
+// fn broadcast_board() {
+//     // Sending the FEN of the board
+// }

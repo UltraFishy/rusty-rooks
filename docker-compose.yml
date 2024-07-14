@@ -2,6 +2,7 @@ version: '3.8'
 
 services:
   server:
+    image: "rusty-server"
     build:
       context: ./server
       dockerfile: Dockerfile
@@ -10,25 +11,19 @@ services:
     ports:
       - "1234:1234"
     env_file:
-      - .env  # Adjust this path
+      - .env
 
   client:
+    image: "rusty-client"
     build:
       context: ./client
       dockerfile: Dockerfile
+    tty: true
+    stdin_open: true
     deploy:
-      replicas: 1
-    tty: true   # Ensures TTY support for terminal interaction
+      mode: replicated
+      replicas: 0  # Start with no clients
     env_file:
-      - .env  # Adjust this path
-    depends_on:
-      - server
-
-  nginx:
-    image: nginx:latest
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - .env
     ports:
-      - "2345:80"
-
-
+      - "4321:4321"
